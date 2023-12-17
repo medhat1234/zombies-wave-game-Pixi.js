@@ -1,6 +1,6 @@
 let SW = window.innerWidth,
   SH = window.innerHeight;
-let pressedButtons = [];
+let pressedButtons = new Set();
 let mouse = {
   position: {
     x: 0,
@@ -17,11 +17,17 @@ const app = new PIXI.Application({
 app.renderer.view.style.position = "absolute";
 document.body.appendChild(app.view);
 let playerTexURL =
-  "https://lh3.googleusercontent.com/drive-viewer/AEYmBYRzbNkTua4JyWsGHwieNay_GchUw6EyS71CPs3jCVAYPqfN95gWSD1HA_I1nypxM-7Du27U16TAns9UBcr6SPvNI1XO7g=s2560";
+    "https://lh3.googleusercontent.com/drive-viewer/AEYmBYRzbNkTua4JyWsGHwieNay_GchUw6EyS71CPs3jCVAYPqfN95gWSD1HA_I1nypxM-7Du27U16TAns9UBcr6SPvNI1XO7g=s2560",
+  projectileTexUrl =
+    "https://lh3.googleusercontent.com/drive-viewer/AEYmBYTKgkP40scMB8hK5UKB9nmqHWvJGLo4pTK95kqWsx9YQczw0IuBfMfdh0E-F1yQ4DylwhJbZWRm_vmC_zOO4CNXbaT2Nw=s2560";
 
 let player = PIXI.Sprite.from(playerTexURL);
+let bullet = PIXI.Sprite.from(projectileTexUrl),
+  isShooting = false,
+  dir = 0;
 let speed = 5,
-  shotspeed = 20;
+  shotspeed = 25;
+let bulletsArr = [];
 app.stage.addChild(player);
 
 player.anchor.set(0.5);
@@ -31,59 +37,92 @@ app.stage.eventMode = "static";
 app.stage.on("globalpointermove", (e) => {
   mouse.position = e.data.global;
 });
-window.addEventListener("click", (e) => {
+window.addEventListener("mousedown", (e) => {
   console.log("shot");
+  shot(player, bullet);
 });
-app.ticker.add((delta) => update(delta));
+window.addEventListener("mouseup", (e) => {
+  isShooting = false;
+});
+app.ticker.add(update);
 
-function update(delta) {
+function update() {
   collided(player, SW, SH);
-  movement(delta);
-  player.rotation = LookAt(player, mouse);
+  movement();
+
+  player.rotation = LookAt2(player, mouse);
+  if (isShooting) {
+    particleSystem(dir, bulletsArr[bulletsArr.length - 1]);
+  }
 }
-function movement(delta) {
+function shot(shooter, bullet) {
+  bulletsArr.push(PIXI.Sprite.from(projectileTexUrl));
+  dir = shooter.rotation;
+  //intialize
+  app.stage.addChild(bulletsArr[bulletsArr.length - 1]);
+  bulletsArr[bulletsArr.length - 1].anchor.set(0.5);
+  bulletsArr[bulletsArr.length - 1].scale.set(0.7);
+  bulletsArr[bulletsArr.length - 1].position = shooter.position;
+  bulletsArr[bulletsArr.length - 1].rotation = shooter.rotation;
+  isShooting = true;
+}
+function particleSystem(direction, projectile) {
+  if (
+    projectile.position.x <= SW &&
+    projectile.position.x >= 0 &&
+    projectile.position.y <= SH &&
+    projectile.position.y >= 0
+  ) {
+    projectile.position.x -= shotspeed * Math.cos(Math.PI / 2 + direction);
+    projectile.position.y -= shotspeed * Math.sin(Math.PI / 2 + direction);
+  } else {
+    app.stage.removeChild(projectile);
+    bulletsArr.pop();
+  }
+}
+function movement() {
   //CSB = [0-collided right border,1-collided left border,2-collided lower border,3-collided upper border]
-  if (pressedButtons.includes(87)) {
+  if (pressedButtons.has(87)) {
     if (CSB[3]) {
       return;
     }
     if (player.position.y - player.height / 2 < speed) {
       player.position.y = player.height / 2;
     } else {
-      player.position.y -= speed * delta;
+      player.position.y -= speed;
     }
   }
-  if (pressedButtons.includes(83)) {
+  if (pressedButtons.has(83)) {
     if (CSB[2]) {
       return;
     }
     if (SH - (player.position.y + player.height / 2) < speed) {
       player.position.y = SH - player.height / 2;
     } else {
-      player.position.y += speed * delta;
+      player.position.y += speed;
     }
   }
-  if (pressedButtons.includes(65)) {
+  if (pressedButtons.has(65)) {
     if (CSB[1]) {
       return;
     }
     if (player.position.x - player.width / 2 < speed) {
       player.position.x = player.width / 2;
     } else {
-      player.position.x -= speed * delta;
+      player.position.x -= speed;
     }
   }
-  if (pressedButtons.includes(68)) {
+  if (pressedButtons.has(68)) {
     if (CSB[0]) {
       return;
     }
     if (SW - (player.position.x + player.width / 2) < speed) {
       player.position.x = SW - player.width / 2;
     } else {
-      player.position.x += speed * delta;
+      player.position.x += speed;
     }
   }
-  if (pressedButtons.includes(16)) {
+  if (pressedButtons.has(16)) {
     speed = 10;
   } else {
     speed = 5;
@@ -94,12 +133,10 @@ window.addEventListener("keydown", (e) => {
   if (e.repeat) {
     return;
   }
-  pressedButtons.push(e.keyCode);
+  pressedButtons.add(e.keyCode);
 });
 window.addEventListener("keyup", (e) => {
-  pressedButtons = pressedButtons.filter((chr) => {
-    return chr !== e.keyCode;
-  });
+  pressedButtons.delete(e.keyCode);
 });
 function collided(player, screenwidth, screenheight) {
   if (player.position.x >= screenwidth - player.width / 2) {
@@ -123,60 +160,13 @@ function collided(player, screenwidth, screenheight) {
     CSB[2] = false;
   }
 }
-function LookAt(main, target) {
+function LookAt2(main, target) {
   //return angle between two points
-  if (
-    main.position.y > target.position.y &&
-    main.position.x < target.position.x
-  ) {
-    return Math.asin(
-      Math.sqrt((main.position.x - target.position.x) ** 2) /
-        Math.sqrt(
-          (main.position.x - target.position.x) ** 2 +
-            (main.position.y - target.position.y) ** 2
-        )
-    );
-  } else if (
-    main.position.y < target.position.y &&
-    main.position.x < target.position.x
-  ) {
-    return (
-      Math.PI -
-      Math.asin(
-        Math.sqrt((main.position.x - target.position.x) ** 2) /
-          Math.sqrt(
-            (main.position.x - target.position.x) ** 2 +
-              (main.position.y - target.position.y) ** 2
-          )
-      )
-    );
-  } else if (
-    main.position.y <= target.position.y &&
-    main.position.x >= target.position.x
-  ) {
-    return (
-      Math.PI +
-      Math.asin(
-        Math.sqrt((main.position.x - target.position.x) ** 2) /
-          Math.sqrt(
-            (main.position.x - target.position.x) ** 2 +
-              (main.position.y - target.position.y) ** 2
-          )
-      )
-    );
-  } else if (
-    main.position.y >= target.position.y &&
-    main.position.x >= target.position.x
-  ) {
-    return (
-      2 * Math.PI -
-      Math.asin(
-        Math.sqrt((main.position.x - target.position.x) ** 2) /
-          Math.sqrt(
-            (main.position.x - target.position.x) ** 2 +
-              (main.position.y - target.position.y) ** 2
-          )
-      )
-    );
-  }
+  return (
+    Math.PI / 2 +
+    Math.atan2(
+      target.position.y - main.position.y,
+      target.position.x - main.position.x
+    )
+  );
 }
