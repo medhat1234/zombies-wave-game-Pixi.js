@@ -1,3 +1,5 @@
+//first 2 lines get ignored
+import * as PIXI from "pixi.js/dist/pixi.js";
 let SW = window.innerWidth,
   SH = window.innerHeight;
 
@@ -19,46 +21,93 @@ const ZombieTex = PIXI.Texture.from(
 const bulletTex = PIXI.Texture.from(
   "https://lh3.googleusercontent.com/drive-viewer/AEYmBYTGfbKfioP03I0I275dPKA74Db5-l0mmOSM1xUAF7923Dv4u730WdPb9j9f2gLJEttcH8rMmseaMI5igruwQiupNrys4A=s2560"
 );
-//const lightTex = PIXI.Texture.from(
-("https://e1.pngegg.com/pngimages/217/260/png-clipart-luces-round-white-blur-spot.png");
-//);
-//let light = PIXI.Sprite.from(lightTex);
-let player = PIXI.Sprite.from(playerTex);
-let zombies = [];
-let bullet = PIXI.Sprite.from(bulletTex);
-
-let speed = 3;
+let player = PIXI.Sprite.from(playerTex),
+  speed = 3;
 
 app.stage.addChild(player);
 player.anchor.set(0.5);
 player.position.set(SW / 2, SH / 2);
 player.scale.set(0.3, 0.3);
 
-//add zombies
-for (i = 0; i < 20; i++) {
-  const zombie = PIXI.Sprite.from(ZombieTex);
-  zombie.anchor.set(0.5);
-  zombie.position.set(Math.random() * SW, Math.random() * SH);
-  zombie.scale.set(0.5 + Math.random() * 0.5);
-  app.stage.addChild(zombie);
-  zombies.push(zombie);
-}
+const zombies = {
+  zombieSpeed: 2,
+  zombisArray: [],
+  respawn: function () {
+    for (i = 0; i < 10; i++) {
+      const zombie = PIXI.Sprite.from(ZombieTex);
+      zombie.anchor.set(0.5);
+      zombie.position.set(Math.random() * SW, Math.random() * SH);
+      zombie.scale.set(0.5 + Math.random() * 0.3);
+      app.stage.addChild(zombie);
+      this.zombisArray.push(zombie);
+    }
+  },
+  moveMent: function () {
+    this.zombisArray.forEach((zomb) => {
+      zomb.rotation = lookAt(zomb, player);
+      if (
+        distanceBetween(player, zomb) + 15 >
+        (zomb.width + player.width) / 2
+      ) {
+        VectorMove(zomb, this.zombieSpeed);
+      } else {
+        //should be damaged
+      }
+    });
+  },
+};
+//create Zombies
+
+const ParticleSystem = {
+  projectileSpeed: 10,
+  frequency: 1000,
+  parts: new Set(),
+  partsreapeter: null,
+
+  main: function () {
+    if (this.parts.size > 0) {
+      this.parts.forEach((part) => {
+        VectorMove(part, this.projectileSpeed);
+        if (part.x > SW || part.x < 0 || part.y > SH || part.y < 0) {
+          this.parts.delete(part);
+          app.stage.removeChild(part);
+        }
+      });
+    }
+  },
+  addparts: function (emitter) {
+    const bullet = PIXI.Sprite.from(bulletTex);
+    bullet.anchor.set(0.5);
+    bullet.position.set(emitter.x, emitter.y);
+    bullet.scale.set(0.35);
+    bullet.rotation = emitter.rotation;
+    app.stage.addChild(bullet);
+    this.parts.add(bullet);
+  },
+  Toggle: function (on) {
+    if (on) {
+      this.partsreapeter = setInterval(
+        () => this.addparts(player),
+        10000 / this.frequency
+      );
+    } else if (!on) {
+      clearInterval(this.partsreapeter);
+    }
+  },
+};
+
+zombies.respawn();
 
 app.ticker.add(update);
+
 function update() {
   collided(player, SW, SH);
   movement();
-  Shooting();
   player.rotation = lookAt(player, mouse);
-  zombies.forEach((e) => {
-    e.rotation = lookAt(e, player);
-    VectorMove(e, 1);
-  });
+  zombies.moveMent();
+  ParticleSystem.main();
 }
-function Shooting() {
-  if (pressedButtons.has(0)) {
-  }
-}
+
 function VectorMove(object, magnitude) {
   //moves in constant direction in this case it moves in direction of object face
   object.position.x -= magnitude * Math.cos(Math.PI / 2 + object.rotation);
@@ -140,6 +189,9 @@ function lookAt(main, target) {
   //return angle between two points
   return Math.PI / 2 + Math.atan2(target.y - main.y, target.x - main.x);
 }
+function distanceBetween(first, second) {
+  return Math.sqrt((first.x - second.x) ** 2 + (first.y - second.y) ** 2);
+}
 
 ///////////********/////// input system  /////*********////////
 let pressedButtons = new Set();
@@ -156,12 +208,16 @@ window.addEventListener("pointermove", (e) => {
 });
 
 window.addEventListener("mousedown", (e) => {
-  pressedButtons.add(0);
+  if (e.button === 0) {
+    ParticleSystem.Toggle(true);
+    pressedButtons.add(0);
+  }
 });
 window.addEventListener("mouseup", (e) => {
   if (e.button === 2) {
     pressedButtons.delete(1);
   } else {
+    ParticleSystem.Toggle(false);
     pressedButtons.delete(0);
   }
 });
