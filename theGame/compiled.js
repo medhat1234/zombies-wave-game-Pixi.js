@@ -1,8 +1,5 @@
-//first 2 lines get ignored
-import * as PIXI from "pixi.js/dist/pixi.js";
 let SW = window.innerWidth,
   SH = window.innerHeight;
-
 let CSB = [false, false, false, false];
 const app = new PIXI.Application({
   height: SH,
@@ -23,44 +20,63 @@ const bulletTex = PIXI.Texture.from(
 );
 let player = PIXI.Sprite.from(playerTex),
   speed = 3;
-
+let healthbar = PIXI.Sprite.from(PIXI.Texture.WHITE),
+  back = PIXI.Sprite.from(PIXI.Texture.WHITE);
+healthbar.tint = "green";
+back.tint = "red";
+back.width = 400;
+healthbar.width = 400;
+app.stage.addChild(back);
+app.stage.addChild(healthbar);
+player["health"] = 1000;
 app.stage.addChild(player);
 player.anchor.set(0.5);
 player.position.set(SW / 2, SH / 2);
 player.scale.set(0.3, 0.3);
 
-const zombies = {
-  zombieSpeed: 2,
-  zombisArray: [],
-  respawn: function () {
-    for (i = 0; i < 10; i++) {
-      const zombie = PIXI.Sprite.from(ZombieTex);
-      zombie.anchor.set(0.5);
-      zombie.position.set(Math.random() * SW, Math.random() * SH);
-      zombie.scale.set(0.5 + Math.random() * 0.3);
-      app.stage.addChild(zombie);
-      this.zombisArray.push(zombie);
+const entities = {
+  entitieCount: 10,
+  entitieSpeed: 3,
+  entities: new Set(),
+  spawning: function (texture, count, size) {
+    for (i = 0; i < count; i++) {
+      const entitie = PIXI.Sprite.from(texture);
+      entitie["health"] = 1000;
+      entitie.anchor.set(0.5);
+      entitie.position.set(Math.random() * SW, Math.random() * SH);
+      entitie.scale.set(size + Math.random() * 0.3);
+      app.stage.addChild(entitie);
+      this.entities.add(entitie);
     }
   },
-  moveMent: function () {
-    this.zombisArray.forEach((zomb) => {
-      zomb.rotation = lookAt(zomb, player);
+  Main: function () {
+    this.entities.forEach((entitie) => {
+      entitie.rotation = lookAt(entitie, player);
+      ParticleSystem.parts.forEach((part) => {
+        if (distanceBetween(entitie, part) <= entitie.width / 2) {
+          if (entitie.health > 0) {
+            entitie.health -= 1;
+          } else {
+            this.entities.delete(entitie);
+            app.stage.removeChild(entitie);
+          }
+        }
+      });
       if (
-        distanceBetween(player, zomb) + 15 >
-        (zomb.width + player.width) / 2
+        distanceBetween(player, entitie) + 15 >
+        (entitie.width + player.width) / 2
       ) {
-        VectorMove(zomb, this.zombieSpeed);
+        VectorMove(entitie, this.entitieSpeed);
       } else {
-        //should be damaged
+        player.health -= 1;
       }
     });
   },
 };
-//create Zombies
 
 const ParticleSystem = {
-  projectileSpeed: 10,
-  frequency: 1000,
+  projectileSpeed: 50,
+  frequency: 9000,
   parts: new Set(),
   partsreapeter: null,
 
@@ -96,15 +112,19 @@ const ParticleSystem = {
   },
 };
 
-zombies.respawn();
+entities.spawning(ZombieTex, 20, 0.5);
 
 app.ticker.add(update);
 
 function update() {
+  healthbar.width = (4 / 10) * player.health;
+  if (player.health < 0) {
+    return;
+  }
   collided(player, SW, SH);
   movement();
   player.rotation = lookAt(player, mouse);
-  zombies.moveMent();
+  entities.Main();
   ParticleSystem.main();
 }
 
