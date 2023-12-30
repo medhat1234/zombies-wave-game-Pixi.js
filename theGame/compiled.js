@@ -35,13 +35,13 @@ player.position.set(SW / 2, SH / 2);
 player.scale.set(0.3, 0.3);
 
 const entities = {
-  entitieCount: 10,
   entitieSpeed: 3,
   entities: new Set(),
-  spawning: function (texture, count, size) {
+  spawning: function (texture, count, size, speed) {
     for (i = 0; i < count; i++) {
       const entitie = PIXI.Sprite.from(texture);
-      entitie["health"] = 1000;
+      entitie.health = 1000;
+      entitie.speed = speed + 2 * Math.random();
       entitie.anchor.set(0.5);
       entitie.position.set(Math.random() * SW, Math.random() * SH);
       entitie.scale.set(size + Math.random() * 0.3);
@@ -66,7 +66,7 @@ const entities = {
         distanceBetween(player, entitie) + 15 >
         (entitie.width + player.width) / 2
       ) {
-        VectorMove(entitie, this.entitieSpeed);
+        VectorMove(entitie, entitie.speed);
       } else {
         player.health -= 1;
       }
@@ -112,7 +112,7 @@ const ParticleSystem = {
   },
 };
 
-entities.spawning(ZombieTex, 20, 0.5);
+entities.spawning(ZombieTex, 10, 0.5, 3);
 
 app.ticker.add(update);
 
